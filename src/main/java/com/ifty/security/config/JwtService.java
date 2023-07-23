@@ -1,0 +1,68 @@
+package com.ifty.security.config;
+
+import java.security.Key;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+
+@Service
+public class JwtService {
+	private static final String SECRET_KEY="kcbVGjJFv7IEnCjWFBX3PZhnSTJazJAy"; 
+	public String extractUsername(String token) {
+		return extracteClaim(token,Claims::getSubject);
+	}
+	
+	public String genrateToken(UserDetails userDetails) {
+		
+		return genrateToken(new HashMap<>(),userDetails);
+	}
+	public boolean isTokenValid(String token,UserDetails userDetails) {
+		final String username = extractUsername(token);
+		return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+	}
+	public boolean isTokenExpired(String token) {
+		//final String username = extractUsername(token);
+		return extractExpiration(token).before(new Date()); // (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+	}
+	public Date extractExpiration(String token) {
+		return extracteClaim(token, Claims :: getExpiration);
+		
+	}
+	
+	public String genrateToken(Map<String,Object> extractClaim,UserDetails userDetail) {
+		return Jwts
+				.builder()
+				.setClaims(extractClaim)
+				.setSubject(userDetail.getUsername())
+				.setIssuedAt(new Date(System.currentTimeMillis()))
+				.setExpiration(new Date(System.currentTimeMillis() +1000*60*24))
+				.signWith(getSignInKey(),SignatureAlgorithm.HS256).compact();
+	}
+	public <T> T extracteClaim(String token,Function<Claims,T> claimsResolver){
+		final Claims claims = extractAllClaims(token); 
+		return claimsResolver.apply(claims);
+	}
+	private Claims extractAllClaims(String token) {
+		return Jwts
+				.parserBuilder()
+				.setSigningKey(getSignInKey())
+				.build()
+				.parseClaimsJws(token)
+				.getBody();
+		
+	}
+	private Key getSignInKey() {
+		byte [] decoder =  Decoders.BASE64.decode(SECRET_KEY);
+		return Keys.hmacShaKeyFor(decoder);
+	}
+}
